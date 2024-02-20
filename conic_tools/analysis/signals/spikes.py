@@ -4,6 +4,7 @@ from sys import exit
 import numpy as np
 from matplotlib import pyplot as pl
 from scipy import signal as sp
+from tqdm import tqdm
 
 # import conic.networks.nest_snn.tools.analysis.postprocess
 from conic_tools.visualization import spikes as spk_plots, helper
@@ -2312,13 +2313,13 @@ class SpikeList(object):
 
     def autocorrelations(self, float_only=True):
         """
-        Returns isi adaptation index for all neurons in spikelist
+        Returns autocorrelogram for all neurons in spikelist
         :return:
         """
-        ai = [self.spiketrains[v].autocorrelation() for v in self.id_list if len(self.spiketrains[v]) > 1]
+        ac = [self.spiketrains[v].autocorrelation() for v in self.id_list if len(self.spiketrains[v]) > 1]
         if float_only:
-            ai = np.extract(np.logical_not(np.isnan(ai)), ai)
-        return np.array(ai)
+            ac = np.extract(np.logical_not(np.isnan(ac)), ac)
+        return np.array(ac)
 
     #######################################################################
     # Method to convert the SpikeList into several others format        ##
@@ -2437,7 +2438,7 @@ class SpikeList(object):
 
         return responses[:, -1]
 
-    def filter_spiketrains(self, dt, tau, start=None, stop=None, N=None, display=False):
+    def filter_spiketrains(self, dt, tau, start=None, stop=None, N=None):
         """
         Returns an NxT matrix where each row represents the filtered spiking activity of
         one neuron and the columns represent time...
@@ -2452,19 +2453,17 @@ class SpikeList(object):
         # t = np.arange(start, stop, dt)
         t_size = int(np.round((stop - start) / dt))
         t = np.linspace(start, stop, num=t_size, endpoint=False)
-        if display:
-            print("\nCompiling activity matrix from SpikeList")
+
+        print("\nCompiling activity matrix from SpikeList")
         state_mat = np.zeros((N, len(t)))
         if N is not None:
             id_list = np.sort(self.id_list - min(self.id_list))
         else:
             id_list = np.sort(self.id_list)
 
-        for idx, nn in enumerate(id_list):
+        for idx, nn in enumerate(tqdm(id_list)):
             sk_train = self.spiketrains[int(self.id_list[idx])]
             state_mat[int(nn), :] = sk_train.exponential_filter(dt, tau, start, stop)
-            # if display:
-            #     helper.progress_bar(float(idx) / float(len(id_list)))
 
         return state_mat
 
