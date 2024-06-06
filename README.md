@@ -1,3 +1,7 @@
+---
+{}
+---
+
 # CoNiC Tools 
 
 Package providing analysis, visualization and management of real and simulated neural data: from spiking activity to membrane voltages, firing rates or synaptic currents

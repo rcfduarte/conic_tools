@@ -361,14 +361,21 @@ def plot_synaptic_currents(I_ex, I_in, time_axis):
     ax.plot(time_axis, np.mean(np.abs(I_ex) - np.abs(I_in)) * np.ones_like(I_ex), '--', c='gray')
 
 
-def pretty_raster(global_spike_list, analysis_interval, sub_pop_gids=None, n_total_neurons=10, ax=None, color='k'):
+def pretty_raster(global_spike_list, analysis_interval=None, sub_pop_gids=None, max_rate=None, n_total_neurons=10,
+                  ax=None, color='k', save=False):
     """
     Simple line raster to plot a subset of the populations (for publication)
     :return:
     """
+    if analysis_interval is None:
+        analysis_interval = [global_spike_list.t_start, global_spike_list.t_stop]
+
     plot_list = global_spike_list.time_slice(t_start=analysis_interval[0], t_stop=analysis_interval[1])
-    new_ids = np.intersect1d(plot_list.select_ids("cell.mean_rate() > 0"),
-                             plot_list.select_ids("cell.mean_rate() < 100"))
+    if max_rate is not None:
+        new_ids = np.intersect1d(plot_list.select_ids("cell.mean_rate() > 0"),
+                                 plot_list.select_ids("cell.mean_rate() < {}".format(max_rate)))
+    else:
+        new_ids = global_spike_list.id_list
 
     if ax is None:
         fig = pl.figure()
@@ -406,6 +413,9 @@ def pretty_raster(global_spike_list, analysis_interval, sub_pop_gids=None, n_tot
     ax.set_ylim(-0.5, n_total_neurons - 0.5)
     ax.set_xlim(0., analysis_interval[1] - analysis_interval[0])
     ax.grid(False)
+    if save:
+        assert isinstance(save, str), "Please provide filename"
+        pl.savefig(save)
 
 
 def plot_response_activity(spike_list, input_stimulus, start=None, stop=None):

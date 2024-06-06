@@ -2414,7 +2414,7 @@ class SpikeList(object):
         if with_rate:
             time = self.time_axis(dt)[:-1]
             rate = self.firing_rate(dt, average=True)
-            ax2.plot(time, rate)
+            ax2.plot(time, rate, **kwargs)
         ax1.set(ylim=[min(self.id_list) - 1, max(self.id_list) + 1], xlim=[self.t_start - 1, self.t_stop + 1])
 
         if save:

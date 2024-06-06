@@ -64,64 +64,78 @@ def compute_dimensionality(response_matrix, pca_obj=None, label='', plot=False, 
 
 
 def compute_timescale(response_matrix, time_axis, max_lag=1000, method=0, plot=True, display=True, save=False,
-                      verbose=True):
+                      verbose=True, n_procs=1):
     """
-	Determines the time scale of fluctuations in the population activity.
+    Determines the time scale of fluctuations in the population activity.
 
-	:param response_matrix: [np.array] with size NxT, continuous time
-	:param time_axis:
-	:param max_lag:
-	:param method: based on autocorrelation (0) or on power spectra (1) - not implemented yet
-	:param plot:
-	:param display:
-	:param save:
-	:return:
-	"""
-    # TODO modify / review / extend / correct / update
+    :param response_matrix: [np.array] with size NxT, continuous time
+    :param time_axis:
+    :param max_lag:
+    :param method: based on autocorrelation (0) or on power spectra (1) - not implemented yet
+    :param plot:
+    :param display:
+    :param save:
+    :param n_procs: [int] number of processes used for parallelization
+    :return: (tuple) final_acc, mean_fit, acc_function, time_scales
+        final_acc: acc[:, :max_lag]
+        mean_fit: a_fit, b_fit, tau_fit - result from least squares fitting of the exponential
+        acc_function: simple exponential
+        time_scales: list of the fitted time constants of the individual signals / neurons (tau_fit)
+
+    """
     time_scales = []
-    final_acc = []
     errors = []
-    acc = cross_trial_cc(response_matrix)
+    acc = cross_trial_cc(response_matrix, n_procs=n_procs)
     initial_guess = 1., 0., 10.
     for n_signal in range(acc.shape[0]):
         try:
-            fit, _ = opt.leastsq(err_func, initial_guess,
-                                 args=(time_axis[:max_lag], acc[n_signal, :max_lag], acc_function))
+            fit, _ = opt.leastsq(err_func, initial_guess, args=(time_axis[:max_lag], acc[n_signal, :max_lag], acc_function))
+            a_fit, b_fit, tau_fit = fit  # expand fitted parameters from tuple
 
-            if fit[2] > 0.1:
+            if tau_fit > 0.1:
+                # this may yield a NaN error! (but that's okay if fit was not possible)
                 error_rates = np.sum((acc[n_signal, :max_lag] - acc_function(time_axis[:max_lag], *fit)) ** 2)
                 if verbose:
-                    logger.info("Timescale [ACC] = {0} ms / error = {1}".format(str(fit[2]), str(error_rates)))
-                time_scales.append(fit[2])
+                    logger.info("Timescale [ACC] = {0} ms / error = {1}".format(str(tau_fit), str(error_rates)))
+
                 errors.append(error_rates)
-                final_acc.append(acc[n_signal, :max_lag])
-            elif 0. < fit[2] < 0.1:
-                fit, _ = opt.leastsq(err_func, initial_guess,
-                                     args=(time_axis[1:max_lag], acc[n_signal, 1:max_lag], acc_function))
+                if np.isnan(error_rates):
+                    time_scales.append(np.nan)
+                else:
+                    time_scales.append(tau_fit)
+            elif 0. < tau_fit < 0.1:
+                fit, _ = opt.leastsq(err_func, initial_guess, args=(time_axis[1:max_lag], acc[n_signal, 1:max_lag], acc_function))
+                a_fit, b_fit, tau_fit = fit  # expand fitted parameters from tuple
+
                 error_rates = np.sum((acc[n_signal, :max_lag] - acc_function(time_axis[:max_lag], *fit)) ** 2)
                 if verbose:
-                    logger.info("Timescale [ACC] = {0} ms / error = {1}".format(str(fit[2]), str(error_rates)))
-                time_scales.append(fit[2])
+                    logger.info("Timescale [ACC] = {0} ms / error = {1}".format(tau_fit, str(error_rates)))
+                # time_scales.append(tau_fit)
                 errors.append(error_rates)
-                final_acc.append(acc[n_signal, :max_lag])
-        except:
+                if np.isnan(error_rates):
+                    time_scales.append(np.nan)
+                else:
+                    time_scales.append(tau_fit)
+        except Exception as e:
+            raise e
             continue
-    final_acc = np.array(final_acc)
+    final_acc = acc[:, :max_lag]
 
-    mean_fit, _ = opt.leastsq(err_func, initial_guess, args=(time_axis[:max_lag], np.mean(final_acc, 0), acc_function))
+    mean_fit, _ = opt.leastsq(err_func, initial_guess, args=(time_axis[:max_lag], np.nanmean(final_acc, 0), acc_function))
+    a_fit_mean, b_fit_mean, tau_fit_mean = mean_fit
 
-    if mean_fit[2] < 0.1:
+    if tau_fit_mean < 0.1:
         mean_fit, _ = opt.leastsq(err_func, initial_guess,
-                                  args=(time_axis[1:max_lag], np.mean(final_acc, 0)[1:max_lag], acc_function))
+                                  args=(time_axis[1:max_lag], np.nanmean(final_acc, 0)[1:max_lag], acc_function))
 
-    error_rates = np.sum((np.mean(final_acc, 0) - acc_function(time_axis[:max_lag], *mean_fit)) ** 2)
+    error_rates = np.nansum((np.nanmean(final_acc, 0) - acc_function(time_axis[:max_lag], *mean_fit)) ** 2)
     logger.info("*******************************************")
-    logger.info("Timescale = {0} ms / error = {1}".format(str(mean_fit[2]), str(error_rates)))
+    logger.info("Timescale = {0} ms / error = {1}".format(str(tau_fit_mean), str(error_rates)))
     logger.info("Accepted dimensions = {0}".format(str(float(final_acc.shape[0]) / float(acc.shape[0]))))
 
     if plot:
         plot_acc(time_axis[:max_lag], acc[:, :max_lag], mean_fit, acc_function, ax=None,
-                                                display=display, save=save)
+                                              display=display, save=save)
 
     return final_acc, mean_fit, acc_function, time_scales
 
