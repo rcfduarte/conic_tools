@@ -1,8 +1,6 @@
----
-{}
----
+# CoNiC-Tools
 
-# CoNiC Tools 
+Cognitive Neuro-inspired Computing (CoNiC) is a set of libraries to investigate neural computation.
 
 Package providing analysis, visualization and management of real and simulated neural data: from spiking activity to membrane voltages, firing rates or synaptic currents
 
